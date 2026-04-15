@@ -1,0 +1,66 @@
+# Build directory
+build/
+
+# SDK configuration files
+sdkconfig
+
+# IDE files
+.vscode/
+.idea/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Mac OSX
+.DS_Store
+
+# Windows
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Linux
+*~
+
+# ESP-IDF specific
+*.bin
+*.elf
+*.map
+*.o
+*.a
+*.d
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Ninja
+build.ninja
+.ninja_log
+.ninja_deps
+
+# Generated files
+*.generated.h
+*.generated.c
+
+# IDE specific
+*.code-workspace
+*.vscode/
+*.idea/
+
+# Dependency files
+dependencies.lock
+
+# Environment files
+.env
