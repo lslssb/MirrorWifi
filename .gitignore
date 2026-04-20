@@ -66,5 +66,4 @@ dependencies.lock
 .env
 
 # SDK configuration files
-sdkconfig
 sdkconfig.old
