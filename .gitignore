@@ -67,3 +67,6 @@ dependencies.lock
 
 # SDK configuration files
 sdkconfig.old
+
+# Component manager
+managed_components/
