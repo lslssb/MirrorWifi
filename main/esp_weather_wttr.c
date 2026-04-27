@@ -42,6 +42,7 @@ esp_err_t esp_weather_get_wttr(weather_data_t *weather)
 
     // 3. 同步建立 HTTPS 连接
     const char *url = "https://wttr.in/Beijing?format=%t+%h";
+    ESP_LOGI(TAG, "Requesting: %s", url);
     int ret = esp_tls_conn_http_new_sync(url, &tls_cfg, tls);
 
     if (ret != 1) {
@@ -76,6 +77,8 @@ esp_err_t esp_weather_get_wttr(weather_data_t *weather)
  */
 void esp_weather_wttr_run(void)
 {
+    ESP_LOGI(TAG, "esp_weather_wttr_run");
+
     weather_data_t data;
 
     if (esp_weather_get_wttr(&data) == ESP_OK) {

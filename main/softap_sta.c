@@ -78,6 +78,15 @@ static const char *TAG_HTTP = "HTTP Server";
 static bool s_sta_connected = false;
 static httpd_handle_t s_http_server = NULL;
 
+/* 天气获取任务 */
+static void weather_task(void *arg)
+{
+    ESP_LOGI(TAG_STA, "天气获取任务开始");
+    esp_weather_wttr_run();
+    ESP_LOGI(TAG_STA, "天气获取任务完成");
+    vTaskDelete(NULL);
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
@@ -96,8 +105,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_sta_connected = true;
-        // WiFi 连接成功，获取天气
-        esp_weather_wttr_run();
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
         const ip_event_assigned_ip_to_client_t *e = (const ip_event_assigned_ip_to_client_t *)event_data;
         ESP_LOGI(TAG_AP, "Assigned IP to client: " IPSTR ", MAC=" MACSTR ", hostname='%s'",
@@ -208,48 +215,55 @@ static char *scan_wifi_networks(void)
         .channel = 0,
         .show_hidden = true
     };
-    
+
     esp_err_t ret = esp_wifi_scan_start(&scan_config, true);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG_HTTP, "WiFi scan failed: %s", esp_err_to_name(ret));
         return strdup("<option value=\"\">扫描失败</option>");
     }
-    
+
     uint16_t ap_count = 0;
     ret = esp_wifi_scan_get_ap_num(&ap_count);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG_HTTP, "Get AP count failed: %s", esp_err_to_name(ret));
-        return strdup("<option value=\"\">获取 AP 数量失败</option>");
+    if (ret != ESP_OK || ap_count == 0) {
+        return strdup("<option value=\"\">未找到WiFi</option>");
     }
-    
+
     wifi_ap_record_t *ap_records = malloc(sizeof(wifi_ap_record_t) * ap_count);
     if (!ap_records) {
-        ESP_LOGE(TAG_HTTP, "Malloc failed");
-        return strdup("<option value=\"\">内存分配失败</option>");
+        return strdup("<option value=\"\">内存不足</option>");
     }
-    
+
     ret = esp_wifi_scan_get_ap_records(&ap_count, ap_records);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG_HTTP, "Get AP records failed: %s", esp_err_to_name(ret));
         free(ap_records);
-        return strdup("<option value=\"\">获取 AP 记录失败</option>");
+        return strdup("<option value=\"\">获取WiFi失败</option>");
     }
-    
-    char *options = malloc(1024);
+
+    // ====================== 【关键修复】不再固定1024，动态分配 ======================
+    size_t options_size = ap_count * 256;  // 每个WiFi足够空间
+    char *options = malloc(options_size);
     if (!options) {
-        ESP_LOGE(TAG_HTTP, "Malloc failed");
         free(ap_records);
-        return strdup("<option value=\"\">内存分配失败</option>");
+        return strdup("<option value=\"\">内存不足</option>");
     }
-    
     options[0] = '\0';
+
     for (int i = 0; i < ap_count; i++) {
         char option[256];
-        snprintf(option, sizeof(option), "<option value=\"%s\">%s (信号强度: %d dBm)</option>\n", 
-                 (char *)ap_records[i].ssid, (char *)ap_records[i].ssid, ap_records[i].rssi);
-        strcat(options, option);
+
+        // 安全拼接，防止超长
+        snprintf(option, sizeof(option),
+                 "<option value=\"%s\">%s (信号:%d)</option>\n",
+                 (char *)ap_records[i].ssid,
+                 (char *)ap_records[i].ssid,
+                 ap_records[i].rssi);
+
+        // 【关键修复】检查剩余空间，防止溢出
+        if (strlen(options) + strlen(option) < options_size - 16) {
+            strcat(options, option);
+        }
     }
-    
+
     free(ap_records);
     return options;
 }
@@ -258,18 +272,33 @@ static char *scan_wifi_networks(void)
 static esp_err_t index_handler(httpd_req_t *req)
 {
     char *wifi_options = scan_wifi_networks();
-    char *status_msg = "";
     
-    char *response = malloc(strlen(index_html) + strlen(wifi_options) + strlen(status_msg) + 100);
+    // 【关键修复】防止 NULL
+    if (wifi_options == NULL) {
+        wifi_options = strdup("<option value=\"\">无WiFi</option>");
+    }
+
+    const char *status_msg = "";
+    const char *index_html_template = index_html;
+
+    // 安全计算长度
+    size_t html_len = strlen(index_html_template);
+    size_t wifi_len = strlen(wifi_options);
+    size_t msg_len = strlen(status_msg);
+    size_t buf_size = html_len + wifi_len + msg_len + 64;
+
+    char *response = malloc(buf_size);
     if (!response) {
         httpd_resp_send_500(req);
         free(wifi_options);
         return ESP_FAIL;
     }
-    
-    sprintf(response, index_html, wifi_options, status_msg);
+
+    // 【关键修复】用安全的 snprintf
+    snprintf(response, buf_size, index_html_template, wifi_options, status_msg);
+
     httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
-    
+
     free(response);
     free(wifi_options);
     return ESP_OK;
@@ -411,7 +440,7 @@ static httpd_handle_t start_http_server(void)
         
         httpd_uri_t config_uri = {
             .uri = "/config",
-            .method = HTTP_POST,
+            .method = HTTP_GET | HTTP_POST,
             .handler = config_handler,
             .user_ctx = NULL
         };
@@ -580,6 +609,8 @@ void app_main(void)
     }
 
     if (s_sta_connected) {
+        ESP_LOGI(TAG_STA, "connected to ap");
+        
         // 从 NVS 加载配置以获取实际连接的 SSID
         char ssid[32] = {0};
         nvs_handle_t nvs_handle;
@@ -598,6 +629,10 @@ void app_main(void)
         }
         
         softap_set_dns_addr(esp_netif_ap,esp_netif_sta);
+
+        ESP_LOGI(TAG_STA, "创建天气获取任务");
+        xTaskCreatePinnedToCore(weather_task, "weather_task", 4096, NULL, 5, NULL, 0);
+        ESP_LOGI(TAG_STA, "天气获取任务已创建");
     } else {
         ESP_LOGI(TAG_STA, "Failed to connect to WiFi, please configure via http://192.168.4.1");
     }
