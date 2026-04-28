@@ -38,37 +38,36 @@
 */
 
 /* STA Configuration */
-#define EXAMPLE_ESP_WIFI_STA_SSID           CONFIG_ESP_WIFI_REMOTE_AP_SSID
-#define EXAMPLE_ESP_WIFI_STA_PASSWD         CONFIG_ESP_WIFI_REMOTE_AP_PASSWORD
-#define EXAMPLE_ESP_MAXIMUM_RETRY           CONFIG_ESP_MAXIMUM_STA_RETRY
+#define EXAMPLE_ESP_WIFI_STA_SSID CONFIG_ESP_WIFI_REMOTE_AP_SSID
+#define EXAMPLE_ESP_WIFI_STA_PASSWD CONFIG_ESP_WIFI_REMOTE_AP_PASSWORD
+#define EXAMPLE_ESP_MAXIMUM_RETRY CONFIG_ESP_MAXIMUM_STA_RETRY
 
 #if CONFIG_ESP_WIFI_AUTH_OPEN
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_OPEN
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
 #elif CONFIG_ESP_WIFI_AUTH_WEP
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WEP
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WEP
 #elif CONFIG_ESP_WIFI_AUTH_WPA_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA_WPA2_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA_WPA2_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA_WPA2_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA3_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WPA2_WPA3_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WPA2_WPA3_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WPA2_WPA3_PSK
 #elif CONFIG_ESP_WIFI_AUTH_WAPI_PSK
-#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD   WIFI_AUTH_WAPI_PSK
+#define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_WAPI_PSK
 #endif
 
 /* AP Configuration */
-#define EXAMPLE_ESP_WIFI_AP_SSID            CONFIG_ESP_WIFI_AP_SSID
-#define EXAMPLE_ESP_WIFI_AP_PASSWD          CONFIG_ESP_WIFI_AP_PASSWORD
-#define EXAMPLE_ESP_WIFI_CHANNEL            CONFIG_ESP_WIFI_AP_CHANNEL
-#define EXAMPLE_MAX_STA_CONN                CONFIG_ESP_MAX_STA_CONN_AP
-
+#define EXAMPLE_ESP_WIFI_AP_SSID CONFIG_ESP_WIFI_AP_SSID
+#define EXAMPLE_ESP_WIFI_AP_PASSWD CONFIG_ESP_WIFI_AP_PASSWORD
+#define EXAMPLE_ESP_WIFI_CHANNEL CONFIG_ESP_WIFI_AP_CHANNEL
+#define EXAMPLE_MAX_STA_CONN CONFIG_ESP_MAX_STA_CONN_AP
 
 /* DHCP server option */
-#define DHCPS_OFFER_DNS             0x02
+#define DHCPS_OFFER_DNS 0x02
 
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
@@ -90,22 +89,31 @@ static void weather_task(void *arg)
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
-        wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *) event_data;
-        ESP_LOGI(TAG_AP, "Station "MACSTR" joined, AID=%d",
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED)
+    {
+        wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
+        ESP_LOGI(TAG_AP, "Station " MACSTR " joined, AID=%d",
                  MAC2STR(event->mac), event->aid);
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *) event_data;
-        ESP_LOGI(TAG_AP, "Station "MACSTR" left, AID=%d, reason:%d",
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
+    {
+        wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
+        ESP_LOGI(TAG_AP, "Station " MACSTR " left, AID=%d, reason:%d",
                  MAC2STR(event->mac), event->aid, event->reason);
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
+    {
         esp_wifi_connect();
         ESP_LOGI(TAG_STA, "Station started");
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_sta_connected = true;
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT)
+    {
         const ip_event_assigned_ip_to_client_t *e = (const ip_event_assigned_ip_to_client_t *)event_data;
         ESP_LOGI(TAG_AP, "Assigned IP to client: " IPSTR ", MAC=" MACSTR ", hostname='%s'",
                  IP2STR(&e->ip), MAC2STR(e->mac), e->hostname);
@@ -114,97 +122,96 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 
 /* HTML 配置页面 */
 static const char *index_html = "<!DOCTYPE html>"
-"<html>"
-"<head>"
-"    <meta charset=\"UTF-8\">"
-"    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
-"    <title>WiFi 配置</title>"
-"    <style>"
-"        body {"
-"            font-family: Arial, sans-serif;"
-"            margin: 20px;"
-"            padding: 0;"
-"            background-color: #f0f0f0;"
-"        }"
-"        h1 {"
-"            color: #333;"
-"            text-align: center;"
-"        }"
-"        form {"
-"            background-color: white;"
-"            padding: 20px;"
-"            border-radius: 8px;"
-"            box-shadow: 0 0 10px rgba(0,0,0,0.1);"
-"            max-width: 400px;"
-"            margin: 0 auto;"
-"        }"
-"        label {"
-"            display: block;"
-"            margin-bottom: 8px;"
-"            font-weight: bold;"
-"        }"
-"        input[type=\"text\"], input[type=\"password\"] {"
-"            width: 100%;"
-"            padding: 10px;"
-"            margin-bottom: 15px;"
-"            border: 1px solid #ddd;"
-"            border-radius: 4px;"
-"            box-sizing: border-box;"
-"        }"
-"        input[type=\"submit\"] {"
-"            background-color: #4CAF50;"
-"            color: white;"
-"            padding: 10px 15px;"
-"            border: none;"
-"            border-radius: 4px;"
-"            cursor: pointer;"
-"            width: 100%;"
-"            font-size: 16px;"
-"        }"
-"        input[type=\"submit\"]:hover {"
-"            background-color: #45a049;"
-"        }"
-"        .status {"
-"            margin-top: 20px;"
-"            padding: 10px;"
-"            border-radius: 4px;"
-"            text-align: center;"
-"        }"
-"        .success {"
-"            background-color: #d4edda;"
-"            color: #155724;"
-"            border: 1px solid #c3e6cb;"
-"        }"
-"        .error {"
-"            background-color: #f8d7da;"
-"            color: #721c24;"
-"            border: 1px solid #f5c6cb;"
-"        }"
-"        select {"
-"            width: 100%;"
-"            padding: 10px;"
-"            margin-bottom: 15px;"
-"            border: 1px solid #ddd;"
-"            border-radius: 4px;"
-"            box-sizing: border-box;"
-"        }"
-"    </style>"
-"</head>"
-"<body>"
-"    <h1>WiFi 配置</h1>"
-"    <form action=\"/config\" method=\"post\">"
-"        <label for=\"ssid\">WiFi 名称 (SSID):</label>"
-"        <select name=\"ssid\" id=\"ssid\">"
-"            %s"
-"        </select>"
-"        <label for=\"password\">WiFi 密码:</label>"
-"        <input type=\"password\" id=\"password\" name=\"password\" placeholder=\"请输入密码\">"
-"        <input type=\"submit\" value=\"保存配置\">"
-"    </form>"
-"    %s"
-"</body>"
-"</html>";
-
+                                "<html>"
+                                "<head>"
+                                "    <meta charset=\"UTF-8\">"
+                                "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+                                "    <title>WiFi 配置</title>"
+                                "    <style>"
+                                "        body {"
+                                "            font-family: Arial, sans-serif;"
+                                "            margin: 20px;"
+                                "            padding: 0;"
+                                "            background-color: #f0f0f0;"
+                                "        }"
+                                "        h1 {"
+                                "            color: #333;"
+                                "            text-align: center;"
+                                "        }"
+                                "        form {"
+                                "            background-color: white;"
+                                "            padding: 20px;"
+                                "            border-radius: 8px;"
+                                "            box-shadow: 0 0 10px rgba(0,0,0,0.1);"
+                                "            max-width: 400px;"
+                                "            margin: 0 auto;"
+                                "        }"
+                                "        label {"
+                                "            display: block;"
+                                "            margin-bottom: 8px;"
+                                "            font-weight: bold;"
+                                "        }"
+                                "        input[type=\"text\"], input[type=\"password\"] {"
+                                "            width: 100%;"
+                                "            padding: 10px;"
+                                "            margin-bottom: 15px;"
+                                "            border: 1px solid #ddd;"
+                                "            border-radius: 4px;"
+                                "            box-sizing: border-box;"
+                                "        }"
+                                "        input[type=\"submit\"] {"
+                                "            background-color: #4CAF50;"
+                                "            color: white;"
+                                "            padding: 10px 15px;"
+                                "            border: none;"
+                                "            border-radius: 4px;"
+                                "            cursor: pointer;"
+                                "            width: 100%;"
+                                "            font-size: 16px;"
+                                "        }"
+                                "        input[type=\"submit\"]:hover {"
+                                "            background-color: #45a049;"
+                                "        }"
+                                "        .status {"
+                                "            margin-top: 20px;"
+                                "            padding: 10px;"
+                                "            border-radius: 4px;"
+                                "            text-align: center;"
+                                "        }"
+                                "        .success {"
+                                "            background-color: #d4edda;"
+                                "            color: #155724;"
+                                "            border: 1px solid #c3e6cb;"
+                                "        }"
+                                "        .error {"
+                                "            background-color: #f8d7da;"
+                                "            color: #721c24;"
+                                "            border: 1px solid #f5c6cb;"
+                                "        }"
+                                "        select {"
+                                "            width: 100%;"
+                                "            padding: 10px;"
+                                "            margin-bottom: 15px;"
+                                "            border: 1px solid #ddd;"
+                                "            border-radius: 4px;"
+                                "            box-sizing: border-box;"
+                                "        }"
+                                "    </style>"
+                                "</head>"
+                                "<body>"
+                                "    <h1>WiFi 配置</h1>"
+                                "    <form action=\"/config\" method=\"post\">"
+                                "        <label for=\"ssid\">WiFi 名称 (SSID):</label>"
+                                "        <select name=\"ssid\" id=\"ssid\">"
+                                "            %s"
+                                "        </select>"
+                                "        <label for=\"password\">WiFi 密码:</label>"
+                                "        <input type=\"password\" id=\"password\" name=\"password\" placeholder=\"请输入密码\">"
+                                "        <input type=\"submit\" value=\"保存配置\">"
+                                "    </form>"
+                                "    %s"
+                                "</body>"
+                                "</html>";
 
 /* 扫描 WiFi 网络 */
 static char *scan_wifi_networks(void)
@@ -213,42 +220,47 @@ static char *scan_wifi_networks(void)
         .ssid = NULL,
         .bssid = NULL,
         .channel = 0,
-        .show_hidden = true
-    };
+        .show_hidden = true};
 
     esp_err_t ret = esp_wifi_scan_start(&scan_config, true);
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK)
+    {
         ESP_LOGE(TAG_HTTP, "WiFi scan failed: %s", esp_err_to_name(ret));
         return strdup("<option value=\"\">扫描失败</option>");
     }
 
     uint16_t ap_count = 0;
     ret = esp_wifi_scan_get_ap_num(&ap_count);
-    if (ret != ESP_OK || ap_count == 0) {
+    if (ret != ESP_OK || ap_count == 0)
+    {
         return strdup("<option value=\"\">未找到WiFi</option>");
     }
 
     wifi_ap_record_t *ap_records = malloc(sizeof(wifi_ap_record_t) * ap_count);
-    if (!ap_records) {
+    if (!ap_records)
+    {
         return strdup("<option value=\"\">内存不足</option>");
     }
 
     ret = esp_wifi_scan_get_ap_records(&ap_count, ap_records);
-    if (ret != ESP_OK) {
+    if (ret != ESP_OK)
+    {
         free(ap_records);
         return strdup("<option value=\"\">获取WiFi失败</option>");
     }
 
     // ====================== 【关键修复】不再固定1024，动态分配 ======================
-    size_t options_size = ap_count * 256;  // 每个WiFi足够空间
+    size_t options_size = ap_count * 256; // 每个WiFi足够空间
     char *options = malloc(options_size);
-    if (!options) {
+    if (!options)
+    {
         free(ap_records);
         return strdup("<option value=\"\">内存不足</option>");
     }
     options[0] = '\0';
 
-    for (int i = 0; i < ap_count; i++) {
+    for (int i = 0; i < ap_count; i++)
+    {
         char option[256];
 
         // 安全拼接，防止超长
@@ -259,7 +271,8 @@ static char *scan_wifi_networks(void)
                  ap_records[i].rssi);
 
         // 【关键修复】检查剩余空间，防止溢出
-        if (strlen(options) + strlen(option) < options_size - 16) {
+        if (strlen(options) + strlen(option) < options_size - 16)
+        {
             strcat(options, option);
         }
     }
@@ -272,9 +285,10 @@ static char *scan_wifi_networks(void)
 static esp_err_t index_handler(httpd_req_t *req)
 {
     char *wifi_options = scan_wifi_networks();
-    
+
     // 【关键修复】防止 NULL
-    if (wifi_options == NULL) {
+    if (wifi_options == NULL)
+    {
         wifi_options = strdup("<option value=\"\">无WiFi</option>");
     }
 
@@ -288,7 +302,8 @@ static esp_err_t index_handler(httpd_req_t *req)
     size_t buf_size = html_len + wifi_len + msg_len + 64;
 
     char *response = malloc(buf_size);
-    if (!response) {
+    if (!response)
+    {
         httpd_resp_send_500(req);
         free(wifi_options);
         return ESP_FAIL;
@@ -309,11 +324,14 @@ static esp_err_t config_handler(httpd_req_t *req)
 {
     char buf[512];
     int ret, remaining = req->content_len;
-    
-    while (remaining > 0) {
+
+    while (remaining > 0)
+    {
         ret = httpd_req_recv(req, buf, (remaining < sizeof(buf)) ? remaining : sizeof(buf));
-        if (ret <= 0) {
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+        if (ret <= 0)
+        {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT)
+            {
                 httpd_resp_send_408(req);
             }
             return ESP_FAIL;
@@ -321,55 +339,67 @@ static esp_err_t config_handler(httpd_req_t *req)
         buf[ret] = '\0';
         remaining -= ret;
     }
-    
+
     // 解析表单数据
     char ssid[32] = {0};
     char password[64] = {0};
-    
+
     char *ssid_ptr = strstr(buf, "ssid=");
     char *password_ptr = strstr(buf, "password=");
-    
-    if (ssid_ptr && password_ptr) {
+
+    if (ssid_ptr && password_ptr)
+    {
         // 提取 SSID
         ssid_ptr += 5; // 跳过 "ssid="
         char *ssid_end = strstr(ssid_ptr, "&");
-        if (ssid_end) {
+        if (ssid_end)
+        {
             strncpy(ssid, ssid_ptr, ssid_end - ssid_ptr);
-        } else {
+        }
+        else
+        {
             strcpy(ssid, ssid_ptr);
         }
-        
+
         // 提取密码
         password_ptr += 9; // 跳过 "password="
         strcpy(password, password_ptr);
-        
+
         // 解码 URL 编码的字符
-        for (int i = 0; i < strlen(ssid); i++) {
-            if (ssid[i] == '+') ssid[i] = ' ';
+        for (int i = 0; i < strlen(ssid); i++)
+        {
+            if (ssid[i] == '+')
+                ssid[i] = ' ';
         }
-        for (int i = 0; i < strlen(password); i++) {
-            if (password[i] == '+') password[i] = ' ';
+        for (int i = 0; i < strlen(password); i++)
+        {
+            if (password[i] == '+')
+                password[i] = ' ';
         }
-        
+
         ESP_LOGI(TAG_HTTP, "Received SSID: %s, Password: %s", ssid, password);
-        
+
         // 保存配置到 NVS
         nvs_handle_t nvs_handle;
         esp_err_t err = nvs_open("wifi_config", NVS_READWRITE, &nvs_handle);
-        if (err == ESP_OK) {
+        if (err == ESP_OK)
+        {
             err = nvs_set_str(nvs_handle, "ssid", ssid);
-            if (err == ESP_OK) {
+            if (err == ESP_OK)
+            {
                 err = nvs_set_str(nvs_handle, "password", password);
-                if (err == ESP_OK) {
+                if (err == ESP_OK)
+                {
                     err = nvs_commit(nvs_handle);
                 }
             }
             nvs_close(nvs_handle);
         }
-        
-        if (err == ESP_OK) {
+
+        if (err == ESP_OK)
+        {
             ESP_LOGI(TAG_HTTP, "WiFi config saved to NVS");
-            
+
             // 重启 WiFi 连接
             wifi_config_t wifi_sta_config = {
                 .sta = {
@@ -379,45 +409,55 @@ static esp_err_t config_handler(httpd_req_t *req)
             };
             strcpy((char *)wifi_sta_config.sta.ssid, ssid);
             strcpy((char *)wifi_sta_config.sta.password, password);
-            
+
             esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config);
             esp_wifi_disconnect();
             esp_wifi_connect();
-            
+
             // 发送成功响应
             char *wifi_options = scan_wifi_networks();
             char *status_msg = "<div class=\"status success\">配置已保存，正在连接...</div>";
-            
+
             char *response = malloc(strlen(index_html) + strlen(wifi_options) + strlen(status_msg) + 100);
-            if (response) {
+            if (response)
+            {
                 sprintf(response, index_html, wifi_options, status_msg);
                 httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
                 free(response);
-            } else {
-                httpd_resp_send_500(req);
             }
-            free(wifi_options);
-        } else {
-            ESP_LOGE(TAG_HTTP, "Failed to save WiFi config: %s", esp_err_to_name(err));
-            
-            // 发送错误响应
-            char *wifi_options = scan_wifi_networks();
-            char *status_msg = "<div class=\"status error\">保存配置失败</div>";
-            
-            char *response = malloc(strlen(index_html) + strlen(wifi_options) + strlen(status_msg) + 100);
-            if (response) {
-                sprintf(response, index_html, wifi_options, status_msg);
-                httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
-                free(response);
-            } else {
+            else
+            {
                 httpd_resp_send_500(req);
             }
             free(wifi_options);
         }
-    } else {
+        else
+        {
+            ESP_LOGE(TAG_HTTP, "Failed to save WiFi config: %s", esp_err_to_name(err));
+
+            // 发送错误响应
+            char *wifi_options = scan_wifi_networks();
+            char *status_msg = "<div class=\"status error\">保存配置失败</div>";
+
+            char *response = malloc(strlen(index_html) + strlen(wifi_options) + strlen(status_msg) + 100);
+            if (response)
+            {
+                sprintf(response, index_html, wifi_options, status_msg);
+                httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
+                free(response);
+            }
+            else
+            {
+                httpd_resp_send_500(req);
+            }
+            free(wifi_options);
+        }
+    }
+    else
+    {
         httpd_resp_send_500(req);
     }
-    
+
     return ESP_OK;
 }
 
@@ -426,34 +466,31 @@ static httpd_handle_t start_http_server(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.lru_purge_enable = true;
-    
+
     ESP_LOGI(TAG_HTTP, "Starting HTTP server on port %d", config.server_port);
-    if (httpd_start(&s_http_server, &config) == ESP_OK) {
+    if (httpd_start(&s_http_server, &config) == ESP_OK)
+    {
         // 注册 URI 处理程序
         httpd_uri_t index_uri = {
             .uri = "/",
             .method = HTTP_GET,
             .handler = index_handler,
-            .user_ctx = NULL
-        };
+            .user_ctx = NULL};
         httpd_register_uri_handler(s_http_server, &index_uri);
-        
+
         httpd_uri_t config_uri = {
             .uri = "/config",
             .method = HTTP_GET | HTTP_POST,
             .handler = config_handler,
-            .user_ctx = NULL
-        };
+            .user_ctx = NULL};
         httpd_register_uri_handler(s_http_server, &config_uri);
-        
+
         return s_http_server;
     }
-    
+
     ESP_LOGE(TAG_HTTP, "Failed to start HTTP server");
     return NULL;
 }
-
-
 
 /* Initialize soft AP */
 esp_netif_t *wifi_init_softap(void)
@@ -474,7 +511,8 @@ esp_netif_t *wifi_init_softap(void)
         },
     };
 
-    if (strlen(EXAMPLE_ESP_WIFI_AP_PASSWD) == 0) {
+    if (strlen(EXAMPLE_ESP_WIFI_AP_PASSWD) == 0)
+    {
         wifi_ap_config.ap.authmode = WIFI_AUTH_OPEN;
     }
 
@@ -500,7 +538,7 @@ esp_netif_t *wifi_init_sta(void)
             /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
              * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
              * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-            * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
              */
             .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
@@ -510,16 +548,19 @@ esp_netif_t *wifi_init_sta(void)
     // 尝试从 NVS 加载配置
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open("wifi_config", NVS_READONLY, &nvs_handle);
-    if (err == ESP_OK) {
+    if (err == ESP_OK)
+    {
         char ssid[32] = {0};
         char password[64] = {0};
         size_t ssid_len = sizeof(ssid);
         size_t password_len = sizeof(password);
-        
+
         err = nvs_get_str(nvs_handle, "ssid", ssid, &ssid_len);
-        if (err == ESP_OK) {
+        if (err == ESP_OK)
+        {
             err = nvs_get_str(nvs_handle, "password", password, &password_len);
-            if (err == ESP_OK) {
+            if (err == ESP_OK)
+            {
                 ESP_LOGI(TAG_STA, "Loaded WiFi config from NVS: SSID=%s", ssid);
                 strcpy((char *)wifi_sta_config.sta.ssid, ssid);
                 strcpy((char *)wifi_sta_config.sta.password, password);
@@ -528,17 +569,17 @@ esp_netif_t *wifi_init_sta(void)
         nvs_close(nvs_handle);
     }
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config) );
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config));
 
     ESP_LOGI(TAG_STA, "wifi_init_sta finished.");
 
     return esp_netif_sta;
 }
 
-void softap_set_dns_addr(esp_netif_t *esp_netif_ap,esp_netif_t *esp_netif_sta)
+void softap_set_dns_addr(esp_netif_t *esp_netif_ap, esp_netif_t *esp_netif_sta)
 {
     esp_netif_dns_info_t dns;
-    esp_netif_get_dns_info(esp_netif_sta,ESP_NETIF_DNS_MAIN,&dns);
+    esp_netif_get_dns_info(esp_netif_sta, ESP_NETIF_DNS_MAIN, &dns);
     uint8_t dhcps_offer_option = DHCPS_OFFER_DNS;
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(esp_netif_ap));
     ESP_ERROR_CHECK(esp_netif_dhcps_option(esp_netif_ap, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dhcps_offer_option, sizeof(dhcps_offer_option)));
@@ -551,9 +592,10 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    //Initialize NVS
+    // Initialize NVS
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -561,20 +603,20 @@ void app_main(void)
 
     /* Register Event handler */
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                    ESP_EVENT_ANY_ID,
-                    &wifi_event_handler,
-                    NULL,
-                    NULL));
+                                                        ESP_EVENT_ANY_ID,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                    IP_EVENT_STA_GOT_IP,
-                    &wifi_event_handler,
-                    NULL,
-                    NULL));
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                    IP_EVENT_ASSIGNED_IP_TO_CLIENT,
-                    &wifi_event_handler,
-                    NULL,
-                    NULL));
+                                                        IP_EVENT_ASSIGNED_IP_TO_CLIENT,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
 
     /*Initialize WiFi */
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -591,49 +633,57 @@ void app_main(void)
     esp_netif_t *esp_netif_sta = wifi_init_sta();
 
     /* Start WiFi */
-    ESP_ERROR_CHECK(esp_wifi_start() );
+    ESP_ERROR_CHECK(esp_wifi_start());
 
     /* Start HTTP server for WiFi configuration */
     start_http_server();
     ESP_LOGI(TAG_HTTP, "HTTP server started, access http://192.168.4.1 to configure WiFi");
 
-    /* Wait for station to connect (simple polling for bare-metal) */
+    /* Wait for station to connect (extended timeout for bare-metal) */
     int retry_count = 0;
-    while (!s_sta_connected && retry_count < EXAMPLE_ESP_MAXIMUM_RETRY) {
-        ESP_LOGI(TAG_STA, "Waiting for station to connect... (%d/%d)", retry_count + 1, EXAMPLE_ESP_MAXIMUM_RETRY);
-        // Simple delay for bare-metal
-        for (int i = 0; i < 1000000; i++) {
-            __asm__ volatile ("nop");
-        }
+    const int max_retry = 300; // 增加到300次（约30秒）
+    while (!s_sta_connected && retry_count < max_retry)
+    {
+        // 调试打印
+        ESP_LOGI(TAG_STA, "s_sta_connected = %d, 等待时间：%d秒", s_sta_connected, retry_count);
+
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 每次等 1 秒
         retry_count++;
     }
 
-    if (s_sta_connected) {
+    if (s_sta_connected)
+    {
         ESP_LOGI(TAG_STA, "connected to ap");
-        
+
         // 从 NVS 加载配置以获取实际连接的 SSID
         char ssid[32] = {0};
         nvs_handle_t nvs_handle;
         esp_err_t err = nvs_open("wifi_config", NVS_READONLY, &nvs_handle);
-        if (err == ESP_OK) {
+        if (err == ESP_OK)
+        {
             size_t ssid_len = sizeof(ssid);
             err = nvs_get_str(nvs_handle, "ssid", ssid, &ssid_len);
             nvs_close(nvs_handle);
         }
-        
-        if (strlen(ssid) > 0) {
+
+        if (strlen(ssid) > 0)
+        {
             ESP_LOGI(TAG_STA, "connected to ap SSID:%s", ssid);
-        } else {
+        }
+        else
+        {
             ESP_LOGI(TAG_STA, "connected to ap SSID:%s password:%s",
                      EXAMPLE_ESP_WIFI_STA_SSID, EXAMPLE_ESP_WIFI_STA_PASSWD);
         }
-        
-        softap_set_dns_addr(esp_netif_ap,esp_netif_sta);
+
+        softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
 
         ESP_LOGI(TAG_STA, "创建天气获取任务");
-        xTaskCreatePinnedToCore(weather_task, "weather_task", 4096, NULL, 5, NULL, 0);
+        xTaskCreatePinnedToCore(weather_task, "weather_task", 10240, NULL, 5, NULL, 0);
         ESP_LOGI(TAG_STA, "天气获取任务已创建");
-    } else {
+    }
+    else
+    {
         ESP_LOGI(TAG_STA, "Failed to connect to WiFi, please configure via http://192.168.4.1");
     }
 
@@ -641,7 +691,8 @@ void app_main(void)
     esp_netif_set_default_netif(esp_netif_sta);
 
     /* Enable napt on the AP netif */
-    if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK) {
+    if (esp_netif_napt_enable(esp_netif_ap) != ESP_OK)
+    {
         ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
     }
 }
