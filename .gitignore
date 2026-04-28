@@ -2,7 +2,6 @@
 build/
 
 # SDK configuration files
-sdkconfig
 
 # IDE files
 .vscode/
