@@ -69,3 +69,4 @@ sdkconfig.old
 
 # Component manager
 managed_components/
+.clangd
