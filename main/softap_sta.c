@@ -112,11 +112,11 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_sta_connected = true;
     }
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT)
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_AP_STAIPASSIGNED)
     {
-        const ip_event_assigned_ip_to_client_t *e = (const ip_event_assigned_ip_to_client_t *)event_data;
-        ESP_LOGI(TAG_AP, "Assigned IP to client: " IPSTR ", MAC=" MACSTR ", hostname='%s'",
-                 IP2STR(&e->ip), MAC2STR(e->mac), e->hostname);
+        const ip_event_ap_staipassigned_t *e = (const ip_event_ap_staipassigned_t *)event_data;
+        ESP_LOGI(TAG_AP, "Assigned IP to client: " IPSTR ", MAC=" MACSTR,
+                 IP2STR(&e->ip), MAC2STR(e->mac));
     }
 }
 
@@ -613,7 +613,7 @@ void app_main(void)
                                                         NULL,
                                                         NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                        IP_EVENT_ASSIGNED_IP_TO_CLIENT,
+                                                        IP_EVENT_AP_STAIPASSIGNED,
                                                         &wifi_event_handler,
                                                         NULL,
                                                         NULL));
