@@ -70,3 +70,6 @@ sdkconfig.old
 # Component manager
 managed_components/
 .clangd
+
+# Custom ignores
+gtm144/

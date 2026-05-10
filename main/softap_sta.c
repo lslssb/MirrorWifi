@@ -16,6 +16,7 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "screen/st7735s.h"
 #include "esp_netif_net_stack.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
@@ -72,10 +73,14 @@
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 static const char *TAG_HTTP = "HTTP Server";
+static const char *TAG_TFT = "TFT Display";
 
 /* Connection status flag for bare-metal implementation */
 static bool s_sta_connected = false;
 static httpd_handle_t s_http_server = NULL;
+
+/* TFT SPI device handle */
+static spi_device_handle_t s_tft_spi = NULL;
 
 /* 天气获取任务 */
 static void weather_task(void *arg)
@@ -86,6 +91,88 @@ static void weather_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/* TFT test pattern - display rainbow colors for debugging */
+static void tft_test_colors(void) {
+    if (s_tft_spi == NULL) return;
+    
+    ESP_LOGI(TAG_TFT, "Testing TFT colors...");
+    
+    // 显示红色
+    st7735s_fill_screen(s_tft_spi, RED);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    // 显示绿色
+    st7735s_fill_screen(s_tft_spi, GREEN);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    // 显示蓝色
+    st7735s_fill_screen(s_tft_spi, BLUE);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    // 显示白色
+    st7735s_fill_screen(s_tft_spi, WHITE);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    // 显示黑色（清屏）
+    st7735s_fill_screen(s_tft_spi, BLACK);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    ESP_LOGI(TAG_TFT, "TFT color test completed");
+}
+
+/* Initialize TFT display */
+static void tft_init(void) {
+    esp_err_t ret;
+    
+    ESP_LOGI(TAG_TFT, "Initializing TFT display...");
+    
+    // SPI bus configuration
+    spi_bus_config_t buscfg = {
+        .miso_io_num = -1,
+        .mosi_io_num = ST7735S_SDA_PIN,
+        .sclk_io_num = ST7735S_SCL_PIN,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 256,
+    };
+    
+    // Initialize SPI bus
+    ret = spi_bus_initialize(ST7735S_SPI_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG_TFT, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
+        return;
+    }
+    
+    // SPI device configuration
+    spi_device_interface_config_t devcfg = {
+        .clock_speed_hz = 10 * 1000 * 1000,  // 降低到 10MHz 增加兼容性
+        .mode = 0,
+        .spics_io_num = ST7735S_CS_PIN,
+        .queue_size = 7,
+    };
+    
+    // Add device to SPI bus
+    ret = spi_bus_add_device(ST7735S_SPI_HOST, &devcfg, &s_tft_spi);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG_TFT, "Failed to add SPI device: %s", esp_err_to_name(ret));
+        return;
+    }
+    
+    // Initialize ST7735S
+    st7735s_init(s_tft_spi);
+    
+    // Run color test for debugging
+    tft_test_colors();
+    
+    ESP_LOGI(TAG_TFT, "TFT display initialized successfully");
+}
+
+/* Display status on TFT with color */
+static void tft_display_status(uint16_t color) {
+    if (s_tft_spi == NULL) return;
+    st7735s_fill_screen(s_tft_spi, color);
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
@@ -94,23 +181,27 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
         ESP_LOGI(TAG_AP, "Station " MACSTR " joined, AID=%d",
                  MAC2STR(event->mac), event->aid);
+        tft_display_status(CYAN);  // 青色表示有客户端连接
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
     {
         wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
         ESP_LOGI(TAG_AP, "Station " MACSTR " left, AID=%d, reason:%d",
                  MAC2STR(event->mac), event->aid, event->reason);
+        tft_display_status(YELLOW);  // 黄色表示客户端断开
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
         esp_wifi_connect();
         ESP_LOGI(TAG_STA, "Station started");
+        tft_display_status(YELLOW);  // 黄色表示正在连接
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_sta_connected = true;
+        tft_display_status(GREEN);  // 绿色表示连接成功
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_AP_STAIPASSIGNED)
     {
@@ -592,6 +683,10 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    // Initialize TFT display first for debugging
+    tft_init();
+    tft_display_status(BLUE);  // 蓝色表示系统启动中
+
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
@@ -695,4 +790,6 @@ void app_main(void)
     {
         ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
     }
+
+    // esp_restart();
 }
