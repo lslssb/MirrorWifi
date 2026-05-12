@@ -6,12 +6,14 @@
 
 // ==================== 引脚定义 ====================
 #define ST7735S_SPI_HOST    SPI2_HOST
-#define ST7735S_SCL_PIN     GPIO_NUM_20
-#define ST7735S_SDA_PIN     GPIO_NUM_19
-#define ST7735S_RST_PIN     GPIO_NUM_8
-#define ST7735S_CS_PIN      GPIO_NUM_18
-#define ST7735S_SPI4W_PIN   GPIO_NUM_17
+
 #define ST7735S_PWR_PIN     GPIO_NUM_4
+#define ST7735S_RST_PIN     GPIO_NUM_8
+#define ST7735S_RS_PIN      GPIO_NUM_9
+#define ST7735S_SPI4W_PIN   GPIO_NUM_17 // 模式脚：0=4线SPI，1=3线SPI
+#define ST7735S_CS_PIN      GPIO_NUM_18
+#define ST7735S_SDA_PIN     GPIO_NUM_19
+#define ST7735S_SCL_PIN     GPIO_NUM_20
 
 // ==================== 显示配置 ====================
 #define TFT_COLUMN_NUMBER   128
@@ -28,12 +30,14 @@
 #define CYAN                0x07FF
 #define MAGENTA             0xF81F
 
+static const char *TAG_TFT = "TFT Display";
+
 // ==================== 函数声明 ====================
-void st7735s_init(spi_device_handle_t spi);
-void st7735s_clear(spi_device_handle_t spi);
-void st7735s_fill_screen(spi_device_handle_t spi, uint16_t color);
-void st7735s_send_cmd(spi_device_handle_t spi, uint8_t cmd);
-void st7735s_send_data(spi_device_handle_t spi, uint8_t data);
+void st7735s_init(spi_device_handle_t *spi);
+void st7735s_clear(spi_device_handle_t *spi);
+void st7735s_fill_screen(spi_device_handle_t *spi, uint16_t color);
+void st7735s_send_cmd(spi_device_handle_t *spi, uint8_t cmd);
+void st7735s_send_data(spi_device_handle_t *spi, uint8_t data);
 void st7735s_delay_ms(uint32_t ms);
 
 #endif
