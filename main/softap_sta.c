@@ -16,7 +16,7 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "screen/st7735s.h"
+#include "screen/st7789.h"
 #include "esp_netif_net_stack.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
@@ -31,7 +31,6 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "esp_weather_wttr.h"
-
 /* The examples use WiFi configuration that you can set via project configuration menu.
 
    If you'd rather not, just change the below entries to strings with
@@ -81,71 +80,100 @@ static httpd_handle_t s_http_server = NULL;
 /* TFT SPI device handle */
 static spi_device_handle_t s_tft_spi = NULL;
 
-/* 天气获取函数（无RTOS版本） */
-static void weather_get(void)
-{
-    ESP_LOGI(TAG_STA, "开始获取天气数据");
-    esp_weather_wttr_run();
-    ESP_LOGI(TAG_STA, "天气获取完成");
-}
+/* RTOS 任务句柄 */
+static TaskHandle_t s_tft_task = NULL;
+static TaskHandle_t s_weather_task = NULL;
+
+/* WiFi 连接状态事件组 */
+static EventGroupHandle_t s_wifi_event_group = NULL;
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_DISCONNECTED_BIT BIT1
+
+// /* 天气获取函数（无RTOS版本） */
+// static void weather_get(void)
+// {
+//     ESP_LOGI(TAG_STA, "开始获取天气数据");
+//     esp_weather_wttr_run();
+//     ESP_LOGI(TAG_STA, "天气获取完成");
+// }
 
 /* TFT test pattern - display rainbow colors for debugging */
 static void tft_test_colors(void) {
     if (s_tft_spi == NULL) return;
     
-    ESP_LOGI(TAG_TFT, "Testing TFT colors...");
+    ESP_LOGI(TAG_ST7789, "Testing TFT colors...");
     
     // 显示红色
-    st7735s_fill_screen(&s_tft_spi, RED);
-    ESP_LOGI(TAG_TFT, "显示红色");
-    st7735s_delay_ms(3000);  // 裸机延时，替换 vTaskDelay
+    st7789_fill_screen(&s_tft_spi, RED);
+    ESP_LOGI(TAG_ST7789, "显示红色");
+    st7789_delay_ms(5000);
     
     // 显示绿色
-    st7735s_fill_screen(&s_tft_spi, GREEN);
-    ESP_LOGI(TAG_TFT, "显示绿色");
-    st7735s_delay_ms(3000);
+    st7789_fill_screen(&s_tft_spi, GREEN);
+    ESP_LOGI(TAG_ST7789, "显示绿色");
+    st7789_delay_ms(5000);
     
     // 显示蓝色
-    st7735s_fill_screen(&s_tft_spi, BLUE);
-    ESP_LOGI(TAG_TFT, "显示蓝色");
-    st7735s_delay_ms(3000);
+    st7789_fill_screen(&s_tft_spi, BLUE);
+    ESP_LOGI(TAG_ST7789, "显示蓝色");
+    st7789_delay_ms(5000);
     
     // 显示白色
-    st7735s_fill_screen(&s_tft_spi, WHITE);
-    ESP_LOGI(TAG_TFT, "显示白色");
-    st7735s_delay_ms(3000);
+    st7789_fill_screen(&s_tft_spi, WHITE);
+    ESP_LOGI(TAG_ST7789, "显示白色");
+    st7789_delay_ms(5000);
     
     // 显示黑色（清屏）
-    st7735s_fill_screen(&s_tft_spi, BLACK);
-    ESP_LOGI(TAG_TFT, "显示黑色");
-    st7735s_delay_ms(3000);
+    st7789_fill_screen(&s_tft_spi, BLACK);
+    ESP_LOGI(TAG_ST7789, "显示黑色");
+    st7789_delay_ms(5000);
     
-    ESP_LOGI(TAG_TFT, "TFT color test completed");
+    ESP_LOGI(TAG_ST7789, "TFT color test completed");
 }
 
-/* Initialize TFT display */
-static void tft_init(void) {
-    ESP_LOGI(TAG_TFT, "Initializing TFT display...");
+/* TFT 任务 - 独立任务处理显示更新 */
+static void tft_task(void *arg) {
+    ESP_LOGI(TAG_ST7789, "TFT task started");
     
-    esp_err_t ret = st7735s_init(&s_tft_spi);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG_TFT, "TFT initialization failed with error: %s", esp_err_to_name(ret));
-        // 可以选择重试或进入错误处理流程
-        return;
-    }
-    // Run color test once for debugging
+    // 初始化 TFT
+    st7789_init(&s_tft_spi);
+    
+    // 运行一次颜色测试
     while (1) {
+        ESP_LOGI(TAG_ST7789, "开始颜色测试");
         tft_test_colors();
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
     
-    ESP_LOGI(TAG_TFT, "TFT display initialized successfully");
+    // 主循环：监听 WiFi 状态变化
+    while (1) {
+        EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                                WIFI_CONNECTED_BIT | WIFI_DISCONNECTED_BIT,
+                                                pdFALSE, pdFALSE, portMAX_DELAY);
+        
+        if (bits & WIFI_CONNECTED_BIT) {
+            ESP_LOGI(TAG_ST7789, "WiFi connected, displaying green");
+            st7789_fill_screen(&s_tft_spi, GREEN);
+        } else if (bits & WIFI_DISCONNECTED_BIT) {
+            ESP_LOGI(TAG_ST7789, "WiFi disconnected, displaying yellow");
+            st7789_fill_screen(&s_tft_spi, YELLOW);
+        }
+    }
 }
 
-/* Display status on TFT with color */
-static void tft_display_status(uint16_t color) {
-    if (s_tft_spi == NULL) return;
-    st7735s_fill_screen(&s_tft_spi, color);
+/* 初始化 TFT 显示（创建任务） */
+static void tft_init(void) {
+    ESP_LOGI(TAG_ST7789, "Initializing TFT display...");
+    
+    // 创建 TFT 任务
+    xTaskCreate(tft_task, "tft_task", 4096, NULL, 5, &s_tft_task);
 }
+
+// /* Display status on TFT with color */
+// static void tft_display_status(uint16_t color) {
+//     if (s_tft_spi == NULL) return;
+//     st7789_fill_screen(&s_tft_spi, color);
+// }
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
@@ -155,27 +183,37 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
         ESP_LOGI(TAG_AP, "Station " MACSTR " joined, AID=%d",
                  MAC2STR(event->mac), event->aid);
-        tft_display_status(CYAN);  // 青色表示有客户端连接
+        // 通过事件组通知 TFT 任务
+        if (s_tft_spi != NULL) {
+            st7789_fill_screen(&s_tft_spi, CYAN);  // 青色表示有客户端连接
+        }
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
     {
         wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
         ESP_LOGI(TAG_AP, "Station " MACSTR " left, AID=%d, reason:%d",
                  MAC2STR(event->mac), event->aid, event->reason);
-        tft_display_status(YELLOW);  // 黄色表示客户端断开
+        if (s_tft_spi != NULL) {
+            st7789_fill_screen(&s_tft_spi, YELLOW);  // 黄色表示客户端断开
+        }
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
         esp_wifi_connect();
         ESP_LOGI(TAG_STA, "Station started");
-        tft_display_status(YELLOW);  // 黄色表示正在连接
+        if (s_tft_spi != NULL) {
+            st7789_fill_screen(&s_tft_spi, YELLOW);  // 黄色表示正在连接
+        }
+        xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+        xEventGroupSetBits(s_wifi_event_group, WIFI_DISCONNECTED_BIT);
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG_STA, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_sta_connected = true;
-        tft_display_status(GREEN);  // 绿色表示连接成功
+        xEventGroupClearBits(s_wifi_event_group, WIFI_DISCONNECTED_BIT);
+        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_AP_STAIPASSIGNED)
     {
@@ -652,15 +690,31 @@ void softap_set_dns_addr(esp_netif_t *esp_netif_ap, esp_netif_t *esp_netif_sta)
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(esp_netif_ap));
 }
 
+/* 天气获取任务 */
+static void weather_task(void *arg) {
+    ESP_LOGI(TAG_STA, "Weather task started");
+    
+    while (1) {
+        // 等待 WiFi 连接
+        xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+        
+        ESP_LOGI(TAG_STA, "开始获取天气数据");
+        esp_weather_wttr_run();
+        ESP_LOGI(TAG_STA, "天气获取完成");
+        
+        // 每隔一段时间获取一次天气
+        vTaskDelay(pdMS_TO_TICKS(300000)); // 5分钟
+    }
+}
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // Initialize TFT display first for debugging
-    tft_init();
-    tft_display_status(BLUE);  // 蓝色表示系统启动中
-
+    // 创建 WiFi 事件组
+    s_wifi_event_group = xEventGroupCreate();
+    
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
@@ -708,52 +762,11 @@ void app_main(void)
     start_http_server();
     ESP_LOGI(TAG_HTTP, "HTTP server started, access http://192.168.4.1 to configure WiFi");
 
-    /* Wait for station to connect (bare-metal version) */
-    int retry_count = 0;
-    const int max_retry = 300; // 增加到300次（约30秒）
-    while (!s_sta_connected && retry_count < max_retry)
-    {
-        // 调试打印
-        ESP_LOGI(TAG_STA, "s_sta_connected = %d, 等待时间：%d秒", s_sta_connected, retry_count);
-
-        esp_rom_delay_us(1000 * 1000); // 裸机延时 1 秒，替换 vTaskDelay
-        retry_count++;
-    }
-
-    if (s_sta_connected)
-    {
-        ESP_LOGI(TAG_STA, "connected to ap");
-
-        // 从 NVS 加载配置以获取实际连接的 SSID
-        char ssid[32] = {0};
-        nvs_handle_t nvs_handle;
-        esp_err_t err = nvs_open("wifi_config", NVS_READONLY, &nvs_handle);
-        if (err == ESP_OK)
-        {
-            size_t ssid_len = sizeof(ssid);
-            err = nvs_get_str(nvs_handle, "ssid", ssid, &ssid_len);
-            nvs_close(nvs_handle);
-        }
-
-        if (strlen(ssid) > 0)
-        {
-            ESP_LOGI(TAG_STA, "connected to ap SSID:%s", ssid);
-        }
-        else
-        {
-            ESP_LOGI(TAG_STA, "connected to ap SSID:%s password:%s",
-                     EXAMPLE_ESP_WIFI_STA_SSID, EXAMPLE_ESP_WIFI_STA_PASSWD);
-        }
-
-        softap_set_dns_addr(esp_netif_ap, esp_netif_sta);
-
-        // 直接调用天气获取（无RTOS，不再创建任务）
-        weather_get();
-    }
-    else
-    {
-        ESP_LOGI(TAG_STA, "Failed to connect to WiFi, please configure via http://192.168.4.1");
-    }
+    /* 启动 TFT 任务 */
+    tft_init();
+    
+    /* 启动天气任务 */
+    xTaskCreate(weather_task, "weather_task", 4096, NULL, 4, &s_weather_task);
 
     /* Set sta as the default interface */
     esp_netif_set_default_netif(esp_netif_sta);
@@ -764,5 +777,8 @@ void app_main(void)
         ESP_LOGE(TAG_STA, "NAPT not enabled on the netif: %p", esp_netif_ap);
     }
 
-    // esp_restart();
+    // 主任务进入空闲循环
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }

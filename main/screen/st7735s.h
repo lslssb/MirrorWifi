@@ -31,6 +31,8 @@
 #define MAGENTA             0xF81F
 
 static const char *TAG_TFT = "TFT Display";
+static const int TFT_X_OFFSET = 2;
+static const int TFT_Y_OFFSET = 3;
 
 // ==================== 函数声明 ====================
 void st7735s_init(spi_device_handle_t *spi);

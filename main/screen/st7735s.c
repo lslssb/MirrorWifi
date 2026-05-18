@@ -1,38 +1,8 @@
-#include "driver/gpio.h"
-#include "driver/spi_master.h"
+#include "st7735s.h"
 #include "esp_log.h"
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include <string.h>
-
-// ==================== 引脚定义 ====================
-#define ST7735S_SPI_HOST    SPI2_HOST
-
-#define ST7735S_PWR_PIN     GPIO_NUM_4
-#define ST7735S_RST_PIN     GPIO_NUM_8
-#define ST7735S_RS_PIN      GPIO_NUM_9
-#define ST7735S_SPI4W_PIN   GPIO_NUM_17 // 模式脚：0=4线SPI，1=3线SPI
-#define ST7735S_CS_PIN      GPIO_NUM_18
-#define ST7735S_SDA_PIN     GPIO_NUM_19
-#define ST7735S_SCL_PIN     GPIO_NUM_20
-
-// ==================== 显示配置 ====================
-#define TFT_COLUMN_NUMBER   128
-#define TFT_LINE_NUMBER     128
-#define TFT_X_OFFSET        2
-#define TFT_Y_OFFSET        3
-
-// ==================== 颜色定义 (RGB565) ====================
-#define RED                 0xF800
-#define GREEN               0x07E0
-#define BLUE                0x001F
-#define WHITE               0xFFFF
-#define BLACK               0x0000
-#define YELLOW              0xFFE0
-#define CYAN                0x07FF
-#define MAGENTA             0xF81F
-
-static const char *TAG_TFT = "TFT Display";
 
 // ==================== 延时函数 ====================
 void st7735s_delay_ms(uint32_t ms)
@@ -40,91 +10,75 @@ void st7735s_delay_ms(uint32_t ms)
     vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
-// ==================== 发送命令 ====================
+// ==================== 4线SPI：发送命令 ====================
 void st7735s_send_cmd(spi_device_handle_t *spi, uint8_t cmd)
 {
-    if (spi == NULL || *spi == NULL) return;
-
-
-    gpio_set_level(ST7735S_RS_PIN, 0);
+    uint16_t tx_9bit = (0 << 8) | cmd;  // DC=0 + 8bit命令
+    ESP_LOGI(TAG_TFT, "ST7735S send cmd: 0x%04X", tx_9bit);
     spi_transaction_t t = {
-        .length = 8,
-        .tx_buffer = &cmd,
-        .user = (void*)0,
+        .length = 9,
+        .tx_buffer = &tx_9bit,
     };
     spi_device_transmit(*spi, &t);
 }
 
-// ==================== 发送数据 ====================
+// ==================== 4线SPI：发送数据 ====================
 void st7735s_send_data(spi_device_handle_t *spi, uint8_t data)
 {
-    if (spi == NULL || *spi == NULL) return;
-
-    gpio_set_level(ST7735S_RS_PIN, 1);
+    uint16_t tx_9bit = (1 << 8) | data;  // DC=1 + 8bit数据
     spi_transaction_t t = {
-        .length = 8,
-        .tx_buffer = &data,
-        .user = (void*)1,
+        .length = 9,
+        .tx_buffer = &tx_9bit,
     };
     spi_device_transmit(*spi, &t);
 }
 
 // ==================== 设置显示窗口 ====================
-static void st7735s_set_address_window(spi_device_handle_t *spi, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
+static void st7735s_set_address_window(spi_device_handle_t *spi)
 {
-    x1 += TFT_X_OFFSET;
-    x2 += TFT_X_OFFSET;
-    y1 += TFT_Y_OFFSET;
-    y2 += TFT_Y_OFFSET;
-
+    ESP_LOGI(TAG_TFT, "ST7735S set address window");
     st7735s_send_cmd(spi, 0x2A);
-    st7735s_send_data(spi, (x1 >> 8) & 0xFF);
-    st7735s_send_data(spi, x1 & 0xFF);
-    st7735s_send_data(spi, (x2 >> 8) & 0xFF);
-    st7735s_send_data(spi, x2 & 0xFF);
+    st7735s_send_data(spi, 0x00 + TFT_X_OFFSET);
+    st7735s_send_data(spi, 0x00);
+    st7735s_send_data(spi, 0x00 + TFT_COLUMN_NUMBER - 1 + TFT_X_OFFSET);
 
     st7735s_send_cmd(spi, 0x2B);
-    st7735s_send_data(spi, (y1 >> 8) & 0xFF);
-    st7735s_send_data(spi, y1 & 0xFF);
-    st7735s_send_data(spi, (y2 >> 8) & 0xFF);
-    st7735s_send_data(spi, y2 & 0xFF);
+    st7735s_send_data(spi, 0x00 + TFT_Y_OFFSET);
+    st7735s_send_data(spi, 0x00);
+    st7735s_send_data(spi, 0x00 + TFT_LINE_NUMBER - 1 + TFT_Y_OFFSET);
+
+    st7735s_send_cmd(spi, 0x2C);
 }
 
-void lcd_spi_pre_transfer_callback(spi_transaction_t *t)
-{
-    int dc = (int)t->user;
-    gpio_set_level(ST7735S_RS_PIN, dc);
-}
-
-// ==================== 初始化（完全按示例：SCK先置0） ====================
+// ==================== 初始化（4线SPI模式） ====================
 void st7735s_init(spi_device_handle_t *spi)
 {
     esp_err_t ret;
 
-    // 初始化 GPIO
+    // 4线SPI：增加 RS(DC) 引脚
     gpio_config_t gpio_conf = {
         .pin_bit_mask =
             (1ULL << ST7735S_PWR_PIN)   |
             (1ULL << ST7735S_RST_PIN)   |
-            (1ULL << ST7735S_RS_PIN)    |
             (1ULL << ST7735S_SPI4W_PIN) |
-            (1ULL << ST7735S_SCL_PIN),
+            (1ULL << ST7735S_RS_PIN),
         .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = false,
     };
     gpio_config(&gpio_conf);
 
     // 上电
     gpio_set_level(ST7735S_PWR_PIN, 1);
-    st7735s_delay_ms(10);
+    st7735s_delay_ms(100);
 
-    // ===================== 示例代码标准流程 =====================
-    gpio_set_level(ST7735S_SCL_PIN, 0);  // SPI_SCK_0
-    gpio_set_level(ST7735S_RST_PIN, 0);  // SPI_RST_0
+    // 硬件复位
+    gpio_set_level(ST7735S_SCL_PIN, 0);
+    gpio_set_level(ST7735S_RST_PIN, 0);
     st7735s_delay_ms(1000);
-    gpio_set_level(ST7735S_RST_PIN, 1);  // SPI_RST_1
+    gpio_set_level(ST7735S_RST_PIN, 1);
     st7735s_delay_ms(1000);
 
-    // 4线SPI模式
+    // 4线SPI模式：SPI4W_PIN = 0
     gpio_set_level(ST7735S_SPI4W_PIN, 0);
 
     // SPI 总线初始化
@@ -132,7 +86,10 @@ void st7735s_init(spi_device_handle_t *spi)
         .mosi_io_num = ST7735S_SDA_PIN,
         .sclk_io_num = ST7735S_SCL_PIN,
         .miso_io_num = -1,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
     };
+
     ret = spi_bus_initialize(ST7735S_SPI_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG_TFT, "SPI bus init failed");
@@ -140,14 +97,15 @@ void st7735s_init(spi_device_handle_t *spi)
         return;
     }
 
-    // CS 硬件自动控制
+    // 4线SPI：必须加 pre_cb 回调
     spi_device_interface_config_t dev_cfg = {
-        .clock_speed_hz = 10 * 1000 * 1000,
+        .clock_speed_hz = 20 * 1000 * 1000,
         .mode = 0,
         .spics_io_num = ST7735S_CS_PIN,
-        .queue_size = 8,
-        .pre_cb = lcd_spi_pre_transfer_callback,
+        .queue_size = 16,
+        .flags = SPI_DEVICE_HALFDUPLEX,
     };
+
     ret = spi_bus_add_device(ST7735S_SPI_HOST, &dev_cfg, spi);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG_TFT, "SPI device add failed");
@@ -155,8 +113,8 @@ void st7735s_init(spi_device_handle_t *spi)
         return;
     }
 
-    // ==================== 屏幕初始化命令 ====================
-    st7735s_send_cmd(spi, 0x11); // Sleep Out
+    // ==================== 屏幕初始化命令（完全不变） ====================
+    st7735s_send_cmd(spi, 0x11);
     st7735s_delay_ms(120);
 
     st7735s_send_cmd(spi, 0xB1);
@@ -242,19 +200,21 @@ void st7735s_init(spi_device_handle_t *spi)
     st7735s_send_data(spi, 0x03);
     st7735s_send_data(spi, 0x10);
 
-    st7735s_send_cmd(spi, 0x2a); // Column address set
+    st7735s_send_cmd(spi, 0x2A);
     st7735s_send_data(spi, 0x00);
     st7735s_send_data(spi, 0x00+2);
     st7735s_send_data(spi, 0x00);
     st7735s_send_data(spi, 0x80+2);
 
-    st7735s_send_cmd(spi, 0x2b); // Row address set
+    st7735s_send_cmd(spi, 0x2B);
     st7735s_send_data(spi, 0x00);
     st7735s_send_data(spi, 0x00+3);
     st7735s_send_data(spi, 0x00);
     st7735s_send_data(spi, 0x80+3);
 
-    st7735s_send_cmd(spi, 0xF6); // Disable ram power save mode
+    st7735s_send_cmd(spi, 0xF0);
+    st7735s_send_data(spi, 0x01);
+    st7735s_send_cmd(spi, 0xF6);
     st7735s_send_data(spi, 0x00);
 
     st7735s_send_cmd(spi, 0x3A);
@@ -262,36 +222,59 @@ void st7735s_init(spi_device_handle_t *spi)
 
     st7735s_send_cmd(spi, 0x20);
     st7735s_send_cmd(spi, 0x29);
+    st7735s_delay_ms(100);
 
-    ESP_LOGI(TAG_TFT, "✅ ST7735S initialized OK");
+    ESP_LOGI(TAG_TFT, "ST7735S 4线SPI初始化完成");
 }
 
-// ==================== 全屏填充颜色 ====================
+// ==================== 全屏填充（RTOS优化版） ====================
 void st7735s_fill_screen(spi_device_handle_t *spi, uint16_t color)
 {
     if (spi == NULL || *spi == NULL) return;
 
-    uint8_t buf[TFT_COLUMN_NUMBER * 2];
-    for (int i = 0; i < TFT_COLUMN_NUMBER; i++) {
-        buf[i*2]   = (color >> 8) & 0xFF;
-        buf[i*2+1] = color & 0xFF;
+    uint8_t h = (color >> 8) & 0xFF;
+    uint8_t l = color & 0xFF;
+
+    st7735s_set_address_window(spi);
+
+    // 使用DMA批量发送数据，减少阻塞时间
+    #define ST7735S_BATCH_SIZE 512
+    uint16_t batch_buffer[ST7735S_BATCH_SIZE];  // 每个像素9位，用16位存储
+    
+    // 预填充批次缓冲区：DC=1 + 颜色高字节
+    for (int i = 0; i < ST7735S_BATCH_SIZE; i += 2) {
+        batch_buffer[i] = (1 << 8) | h;      // DC=1 + 高字节
+        batch_buffer[i + 1] = (1 << 8) | l;  // DC=1 + 低字节
     }
-
-    st7735s_set_address_window(spi, 0, 0, TFT_COLUMN_NUMBER-1, TFT_LINE_NUMBER-1);
-    st7735s_send_cmd(spi, 0x2C);
-
-    gpio_set_level(ST7735S_RS_PIN, 1);
-    spi_transaction_t t = {
-        .length = TFT_COLUMN_NUMBER * 16,
-        .tx_buffer = buf,
-    };
-
-    for (int y = 0; y < TFT_LINE_NUMBER; y++) {
-        spi_device_transmit(*spi, &t);
+    
+    uint32_t total_pixels = (uint32_t)TFT_COLUMN_NUMBER * TFT_LINE_NUMBER;
+    uint32_t remaining = total_pixels * 2;  // 每个像素2字节
+    esp_err_t ret;
+    
+    while (remaining > 0) {
+        uint32_t send_count = (remaining > ST7735S_BATCH_SIZE) ? ST7735S_BATCH_SIZE : remaining;
+        
+        spi_transaction_t t = {
+            .length = send_count * 9,  // 每个元素9位
+            .tx_buffer = batch_buffer,
+        };
+        
+        ret = spi_device_transmit(*spi, &t);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG_TFT, "Failed to send fill screen data");
+            break;
+        }
+        
+        remaining -= send_count;
+        
+        // 定期让出CPU，防止看门狗超时
+        if (remaining > 0) {
+            taskYIELD();
+        }
     }
 }
 
-// ==================== 清屏（黑色） ====================
+// ==================== 清屏 ====================
 void st7735s_clear(spi_device_handle_t *spi)
 {
     st7735s_fill_screen(spi, BLACK);
