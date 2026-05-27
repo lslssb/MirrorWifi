@@ -16,7 +16,27 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+// ==================== 屏幕选择配置 ====================
+// 取消注释下方对应宏定义以选择使用的屏幕
+//#define SCREEN_ST7789   // 使用 ST7789 屏幕
+#define SCREEN_ST7735S  // 使用 ST7735S 屏幕
+
+// 根据宏定义包含对应的屏幕驱动头文件
+#ifdef SCREEN_ST7789
 #include "screen/st7789.h"
+#define TFT_INIT         st7789_init
+#define TFT_FILL_SCREEN  st7789_fill_screen
+#define TFT_DELAY_MS     st7789_delay_ms
+#define TAG_TFT          TAG_ST7789
+#elif defined(SCREEN_ST7735S)
+#include "screen/st7735s.h"
+#define TFT_INIT         st7735s_init
+#define TFT_FILL_SCREEN  st7735s_fill_screen
+#define TFT_DELAY_MS     st7735s_delay_ms
+#define TAG_TFT          "TFT Display"
+#else
+#error "请定义 SCREEN_ST7789 或 SCREEN_ST7735S 宏来选择屏幕"
+#endif
 #include "esp_netif_net_stack.h"
 #include "esp_netif.h"
 #include "nvs_flash.h"
@@ -72,6 +92,9 @@
 static const char *TAG_AP = "WiFi SoftAP";
 static const char *TAG_STA = "WiFi Sta";
 static const char *TAG_HTTP = "HTTP Server";
+#ifdef SCREEN_ST7789
+static const char *TAG_ST7789 = "TFT Display";
+#endif
 
 /* Connection status flag for bare-metal implementation */
 static bool s_sta_connected = false;
@@ -101,46 +124,46 @@ static EventGroupHandle_t s_wifi_event_group = NULL;
 static void tft_test_colors(void) {
     if (s_tft_spi == NULL) return;
     
-    ESP_LOGI(TAG_ST7789, "Testing TFT colors...");
+    ESP_LOGI(TAG_TFT, "Testing TFT colors...");
     
     // 显示红色
-    st7789_fill_screen(&s_tft_spi, RED);
-    ESP_LOGI(TAG_ST7789, "显示红色");
-    st7789_delay_ms(5000);
+    TFT_FILL_SCREEN(&s_tft_spi, RED);
+    ESP_LOGI(TAG_TFT, "显示红色");
+    TFT_DELAY_MS(5000);
     
     // 显示绿色
-    st7789_fill_screen(&s_tft_spi, GREEN);
-    ESP_LOGI(TAG_ST7789, "显示绿色");
-    st7789_delay_ms(5000);
+    TFT_FILL_SCREEN(&s_tft_spi, GREEN);
+    ESP_LOGI(TAG_TFT, "显示绿色");
+    TFT_DELAY_MS(5000);
     
     // 显示蓝色
-    st7789_fill_screen(&s_tft_spi, BLUE);
-    ESP_LOGI(TAG_ST7789, "显示蓝色");
-    st7789_delay_ms(5000);
+    TFT_FILL_SCREEN(&s_tft_spi, BLUE);
+    ESP_LOGI(TAG_TFT, "显示蓝色");
+    TFT_DELAY_MS(5000);
     
     // 显示白色
-    st7789_fill_screen(&s_tft_spi, WHITE);
-    ESP_LOGI(TAG_ST7789, "显示白色");
-    st7789_delay_ms(5000);
+    TFT_FILL_SCREEN(&s_tft_spi, WHITE);
+    ESP_LOGI(TAG_TFT, "显示白色");
+    TFT_DELAY_MS(5000);
     
     // 显示黑色（清屏）
-    st7789_fill_screen(&s_tft_spi, BLACK);
-    ESP_LOGI(TAG_ST7789, "显示黑色");
-    st7789_delay_ms(5000);
+    TFT_FILL_SCREEN(&s_tft_spi, BLACK);
+    ESP_LOGI(TAG_TFT, "显示黑色");
+    TFT_DELAY_MS(5000);
     
-    ESP_LOGI(TAG_ST7789, "TFT color test completed");
+    ESP_LOGI(TAG_TFT, "TFT color test completed");
 }
 
 /* TFT 任务 - 独立任务处理显示更新 */
 static void tft_task(void *arg) {
-    ESP_LOGI(TAG_ST7789, "TFT task started");
+    ESP_LOGI(TAG_TFT, "TFT task started");
     
     // 初始化 TFT
-    st7789_init(&s_tft_spi);
+    TFT_INIT(&s_tft_spi);
     
     // 运行一次颜色测试
     while (1) {
-        ESP_LOGI(TAG_ST7789, "开始颜色测试");
+        ESP_LOGI(TAG_TFT, "开始颜色测试");
         tft_test_colors();
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
@@ -152,18 +175,18 @@ static void tft_task(void *arg) {
                                                 pdFALSE, pdFALSE, portMAX_DELAY);
         
         if (bits & WIFI_CONNECTED_BIT) {
-            ESP_LOGI(TAG_ST7789, "WiFi connected, displaying green");
-            st7789_fill_screen(&s_tft_spi, GREEN);
+            ESP_LOGI(TAG_TFT, "WiFi connected, displaying green");
+            TFT_FILL_SCREEN(&s_tft_spi, GREEN);
         } else if (bits & WIFI_DISCONNECTED_BIT) {
-            ESP_LOGI(TAG_ST7789, "WiFi disconnected, displaying yellow");
-            st7789_fill_screen(&s_tft_spi, YELLOW);
+            ESP_LOGI(TAG_TFT, "WiFi disconnected, displaying yellow");
+            TFT_FILL_SCREEN(&s_tft_spi, YELLOW);
         }
     }
 }
 
 /* 初始化 TFT 显示（创建任务） */
 static void tft_init(void) {
-    ESP_LOGI(TAG_ST7789, "Initializing TFT display...");
+    ESP_LOGI(TAG_TFT, "Initializing TFT display...");
     
     // 创建 TFT 任务
     xTaskCreate(tft_task, "tft_task", 4096, NULL, 5, &s_tft_task);
@@ -185,7 +208,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                  MAC2STR(event->mac), event->aid);
         // 通过事件组通知 TFT 任务
         if (s_tft_spi != NULL) {
-            st7789_fill_screen(&s_tft_spi, CYAN);  // 青色表示有客户端连接
+            TFT_FILL_SCREEN(&s_tft_spi, CYAN);  // 青色表示有客户端连接
         }
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
@@ -194,7 +217,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG_AP, "Station " MACSTR " left, AID=%d, reason:%d",
                  MAC2STR(event->mac), event->aid, event->reason);
         if (s_tft_spi != NULL) {
-            st7789_fill_screen(&s_tft_spi, YELLOW);  // 黄色表示客户端断开
+            TFT_FILL_SCREEN(&s_tft_spi, YELLOW);  // 黄色表示客户端断开
         }
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
@@ -202,7 +225,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         esp_wifi_connect();
         ESP_LOGI(TAG_STA, "Station started");
         if (s_tft_spi != NULL) {
-            st7789_fill_screen(&s_tft_spi, YELLOW);  // 黄色表示正在连接
+            TFT_FILL_SCREEN(&s_tft_spi, YELLOW);  // 黄色表示正在连接
         }
         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         xEventGroupSetBits(s_wifi_event_group, WIFI_DISCONNECTED_BIT);
